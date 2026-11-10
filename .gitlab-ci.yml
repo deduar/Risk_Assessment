@@ -1,0 +1,49 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+lint:
+  stage: lint
+  image: python:3.11-slim
+  script:
+    - cd backend
+    - pip install --quiet black flake8
+    - black --check app
+    - flake8 app
+
+test:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - postgres:16-alpine
+    - redis:7-alpine
+  variables:
+    POSTGRES_USER: poc
+    POSTGRES_PASSWORD: poc
+    POSTGRES_DB: poc
+    DATABASE_URL: postgresql+psycopg2://poc:poc@postgres:5432/poc
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/1
+  script:
+    - cd backend
+    - pip install --quiet -r requirements.txt
+    - pytest -q
+
+build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - cd backend
+    - docker build -t risk-poc:latest .
+  only:
+    - main
